@@ -1,4 +1,4 @@
-.PHONY: help build start stop restart shell zshell logs status check-sec init env prepare-configs clean clean-image prune backup
+.PHONY: help build start stop restart zshell logs sys-status sys-restart env prepare-configs backup
 
 # --- configuration ---
 CONTAINER_NAME := tartarus
@@ -24,25 +24,21 @@ env: ## scaffold .env
 	@cp -n .env.example .env || true
 
 prepare-configs: ## ensure directories and permissions
-	@mkdir -p $(WORKSPACE_DIR) $(STATE_DIR) $(CONFIGS_DIR)/ssh $(CONFIGS_DIR)/git
+	@mkdir -p $(WORKSPACE_DIR) $(STATE_DIR) $(CONFIGS_DIR)/ssh $(CONFIGS_DIR)/git $(BACKUP_DIR)
 	@touch $(CONFIGS_DIR)/git/.gitconfig
 	@chmod 700 $(CONFIGS_DIR)/ssh
-	@chmod 600 $(CONFIGS_DIR)/ssh/* 2>/dev/null || true
-
-init: ## setup zsh and ai tools internally
-	@docker exec -it $(CONTAINER_NAME) /usr/local/bin/setup_shell.sh
-	@docker exec -it $(CONTAINER_NAME) /usr/local/bin/setup_opencode.sh
+	@find $(CONFIGS_DIR)/ssh -type f -exec chmod 600 {} \; 2>/dev/null || true
 
 ##@ lifecycle
 
 build: ## build image
 	@docker build -t $(IMAGE_NAME) .
 
-start: prepare-configs ## start daemon
+start: prepare-configs ## start environment (always-on)
 	@docker run -d \
 		--name $(CONTAINER_NAME) \
 		--hostname $(HOSTNAME) \
-		--restart always \
+		--restart unless-stopped \
 		--env-file .env \
 		$(PORT_MAP) \
 		-v $(WORKSPACE_DIR):/workspace \
@@ -51,31 +47,27 @@ start: prepare-configs ## start daemon
 		-v $(CONFIGS_DIR)/git/.gitconfig:/root/.gitconfig:ro \
 		$(IMAGE_NAME)
 
-stop: ## stop and remove container
+stop: ## stop and remove container safely
 	@docker stop $(CONTAINER_NAME) || true
 	@docker rm $(CONTAINER_NAME) || true
 
-restart: stop start ## reload container
+restart: stop start ## reload entire container
 
-##@ maintenance & access
+##@ maintenance & agents
 
-backup: ## backup openclaw state with timestamp
-	@mkdir -p $(BACKUP_DIR)
+zshell: ## enter environment terminal
+	@docker exec -it $(CONTAINER_NAME) /bin/zsh
+
+sys-status: ## check background agents status (Supervisor)
+	@docker exec -it $(CONTAINER_NAME) supervisorctl status
+
+sys-restart: ## restart background agents without restarting container
+	@docker exec -it $(CONTAINER_NAME) supervisorctl restart all
+
+logs: ## view supervisor system logs
+	@docker logs -f $(CONTAINER_NAME)
+
+backup: ## backup openclaw state
 	@eval TIMESTAMP=`date +%Y%m%d_%H%M%S`; \
 	tar -czf $(BACKUP_DIR)/openclaw_$$TIMESTAMP.tar.gz -C $(PROJECT_ROOT) .openclaw; \
 	echo "backup saved to $(BACKUP_DIR)/openclaw_$$TIMESTAMP.tar.gz"
-
-shell: ## bash
-	@docker exec -it $(CONTAINER_NAME) /bin/bash
-
-zshell: ## zsh
-	@docker exec -it $(CONTAINER_NAME) /bin/zsh
-
-logs: ## view startup logs
-	@docker logs -f $(CONTAINER_NAME)
-
-status: ## resource monitoring
-	@docker stats $(CONTAINER_NAME)
-
-check-isolation: ## test isolation
-	@docker exec -it $(CONTAINER_NAME) bash -c "ls -la /Users 2>/dev/null || echo 'SUCCESS: mac host isolated.'"
