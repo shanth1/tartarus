@@ -16,6 +16,7 @@ RUN apt-get update && apt-get install -y \
     python3 python3-pip python3-venv \
     iputils-ping net-tools dnsutils iproute2 procps \
     apt-transport-https ca-certificates gnupg lsb-release \
+    psmisc lsof \
     && apt-get clean
 
 # 3. install node.js 24 lts

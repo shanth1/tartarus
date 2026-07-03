@@ -6,6 +6,7 @@ Daemon starts automatically in the background on `make start` via `entrypoint.sh
 **First Time Init (inside container):**
 ```bash
 # Skip systemd setup when asked
+curl -fsSL https://openclaw.ai/install.sh | bash
 openclaw onboard
 ```
 

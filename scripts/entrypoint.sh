@@ -1,13 +1,16 @@
 #!/bin/bash
 set -e
 
-pm2 ping > /dev/null
+echo "==> Cleaning stale session locks and spoolers..."
+rm -f /root/.openclaw/agents/main/sessions/*.lock 2>/dev/null || true
+rm -rf /root/.openclaw/telegram/ingress-spool-default/* 2>/dev/null || true
 
 if command -v openclaw &> /dev/null; then
-    echo "==> Starting openclaw via PM2..."
-    pm2 start "openclaw gateway run --force" --name "openclaw" --exp-backoff-restart-delay=100
+    echo "==> Starting openclaw..."
+    exec openclaw gateway run --force
 else
-    echo "==> WARNING: openclaw not found. Skipping auto-start."
+    echo "==> OpenClaw not found. Keeping container alive..."
+    exec tail -f /dev/null
 fi
 
 exec pm2 logs
