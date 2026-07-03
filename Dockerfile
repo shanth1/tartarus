@@ -20,7 +20,8 @@ RUN apt-get update && apt-get install -y \
 
 # 3. install node.js 24 lts
 RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
-    && apt-get install -y nodejs
+    && apt-get install -y nodejs \
+    && npm install -g pm2
 
 # 4. install docker cli & compose plugin (dood setup)
 RUN mkdir -m 0755 -p /etc/apt/keyrings \
