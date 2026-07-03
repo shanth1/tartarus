@@ -1,4 +1,4 @@
-.PHONY: help build start stop restart shell zshell logs status check-sec init env prepare-configs clean clean-image prune
+.PHONY: help build start stop restart shell zshell logs status check-sec init env prepare-configs clean clean-image prune backup
 
 # --- configuration ---
 CONTAINER_NAME := tartarus
@@ -10,6 +10,7 @@ PROJECT_ROOT := $(shell pwd)
 CONFIGS_DIR := $(PROJECT_ROOT)/.configs
 STATE_DIR := $(PROJECT_ROOT)/.openclaw
 WORKSPACE_DIR := $(PROJECT_ROOT)/.workspace
+BACKUP_DIR := $(PROJECT_ROOT)/.backups
 
 # port mapping (host:container) - block of 100 ports for agents
 PORT_MAP := -p 18000-18100:8000-8100
@@ -57,6 +58,12 @@ stop: ## stop and remove container
 restart: stop start ## reload container
 
 ##@ maintenance & access
+
+backup: ## backup openclaw state with timestamp
+	@mkdir -p $(BACKUP_DIR)
+	@eval TIMESTAMP=`date +%Y%m%d_%H%M%S`; \
+	tar -czf $(BACKUP_DIR)/openclaw_$$TIMESTAMP.tar.gz -C $(PROJECT_ROOT) .openclaw; \
+	echo "backup saved to $(BACKUP_DIR)/openclaw_$$TIMESTAMP.tar.gz"
 
 shell: ## bash
 	@docker exec -it $(CONTAINER_NAME) /bin/bash
