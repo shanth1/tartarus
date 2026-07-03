@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1
 FROM golang:1.25-bookworm
 
 # 1. generate locales
@@ -32,7 +31,8 @@ RUN mkdir -m 0755 -p /etc/apt/keyrings \
 
 # 5. copy initialization scripts
 COPY scripts/ /usr/local/bin/
-RUN chmod +x /usr/local/bin/setup_shell.sh /usr/local/bin/setup_opencode.sh
+RUN chmod +x /usr/local/bin/*.sh
 
 WORKDIR /workspace
-CMD ["tail", "-f", "/dev/null"]
+
+CMD ["/usr/local/bin/entrypoint.sh"]

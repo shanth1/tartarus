@@ -2,48 +2,42 @@
 
 # --- configuration ---
 CONTAINER_NAME := tartarus
-IMAGE_NAME := tartarus-core
+IMAGE_NAME := tartarus-image
 HOSTNAME := tartarus
 
 # local paths
 PROJECT_ROOT := $(shell pwd)
-WORKSPACE_DIR := $(PROJECT_ROOT)/workspace
-CONFIGS_DIR := $(PROJECT_ROOT)/configs
+CONFIGS_DIR := $(PROJECT_ROOT)/.configs
+STATE_DIR := $(PROJECT_ROOT)/.openclaw
+WORKSPACE_DIR := $(PROJECT_ROOT)/.workspace
 
-# port mapping (host:container) - block of 10 ports for agents
-PORT_MAP := -p 18000-18010:8000-8010
+# port mapping (host:container) - block of 100 ports for agents
+PORT_MAP := -p 18000-18100:8000-8100
 
-help: ## show this help message
-	@awk 'BEGIN {FS = ":.*##"; printf "\n\033[1musage:\033[0m\n  make \033[36m<target>\033[0m\n"} \
-	/^[a-zA-Z0-9_-]+:.*?##/ { printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2 } \
-	/^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+help:
+	@awk 'BEGIN {FS = ":.*##"; printf "\n\033[1musage:\033[0m\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z0-9_-]+:.*?##/ { printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
-##@ setup & initialization
+##@ setup
 
-env: ## create .env file from example
+env: ## scaffold .env
 	@cp -n .env.example .env || true
 
-prepare-configs: ## ensure directories and files exist with correct permissions before starting
-	@mkdir -p $(WORKSPACE_DIR)
-	@mkdir -p $(CONFIGS_DIR)/ssh
-	@if [ -d "$(CONFIGS_DIR)/gitconfig" ]; then rm -rf "$(CONFIGS_DIR)/gitconfig"; fi
-	@touch $(CONFIGS_DIR)/gitconfig
+prepare-configs: ## ensure directories and permissions
+	@mkdir -p $(WORKSPACE_DIR) $(STATE_DIR) $(CONFIGS_DIR)/ssh $(CONFIGS_DIR)/git
+	@touch $(CONFIGS_DIR)/git/.gitconfig
 	@chmod 700 $(CONFIGS_DIR)/ssh
 	@chmod 600 $(CONFIGS_DIR)/ssh/* 2>/dev/null || true
 
-init: ## setup zsh, locales and ai agents inside container
-	@echo "initializing container environment..."
+init: ## setup zsh and ai tools internally
 	@docker exec -it $(CONTAINER_NAME) /usr/local/bin/setup_shell.sh
 	@docker exec -it $(CONTAINER_NAME) /usr/local/bin/setup_opencode.sh
 
-##@ container lifecycle
+##@ lifecycle
 
-build: ## build docker image
-	@echo "building $(IMAGE_NAME)..."
+build: ## build image
 	@docker build -t $(IMAGE_NAME) .
 
-start: prepare-configs ## start daemon with mounted workspace, configs, and env
-	@echo "starting $(CONTAINER_NAME)..."
+start: prepare-configs ## start daemon
 	@docker run -d \
 		--name $(CONTAINER_NAME) \
 		--hostname $(HOSTNAME) \
@@ -51,47 +45,30 @@ start: prepare-configs ## start daemon with mounted workspace, configs, and env
 		--env-file .env \
 		$(PORT_MAP) \
 		-v $(WORKSPACE_DIR):/workspace \
-		-v /var/run/docker.sock:/var/run/docker.sock \
+		-v $(STATE_DIR):/root/.openclaw \
 		-v $(CONFIGS_DIR)/ssh:/root/.ssh:ro \
-		-v $(CONFIGS_DIR)/gitconfig:/root/.gitconfig:ro \
+		-v $(CONFIGS_DIR)/git/.gitconfig:/root/.gitconfig:ro \
 		$(IMAGE_NAME)
-	@echo "$(CONTAINER_NAME) is running."
 
 stop: ## stop and remove container
 	@docker stop $(CONTAINER_NAME) || true
 	@docker rm $(CONTAINER_NAME) || true
 
-restart: stop start ## safely restart container and reload .env
+restart: stop start ## reload container
 
-##@ cleanup & maintenance
+##@ maintenance & access
 
-clean: stop ## stop container and remove it (preserves workspace data and image)
-	@echo "container cleaned."
-
-clean-image: clean ## completely remove the tartarus docker image
-	@docker rmi $(IMAGE_NAME) || true
-	@echo "image removed. you will need to run 'make build' again."
-
-prune: ## clean up unused docker networks, dangling images, and build cache
-	@echo "pruning docker system..."
-	@docker system prune -f
-
-##@ access & monitoring
-
-shell: ## enter container with bash
+shell: ## bash
 	@docker exec -it $(CONTAINER_NAME) /bin/bash
 
-zshell: ## enter container with zsh
+zshell: ## zsh
 	@docker exec -it $(CONTAINER_NAME) /bin/zsh
 
-logs: ## tail container logs
+logs: ## view startup logs
 	@docker logs -f $(CONTAINER_NAME)
 
-status: ## show container resources
+status: ## resource monitoring
 	@docker stats $(CONTAINER_NAME)
 
-##@ security & network tests
-
-check-sec: ## test filesystem isolation
-	@echo "=== checking isolation ==="
-	@docker exec -it $(CONTAINER_NAME) bash -c "ls -la /Users 2>/dev/null || echo 'SUCCESS: mac host is isolated.'"
+check-isolation: ## test isolation
+	@docker exec -it $(CONTAINER_NAME) bash -c "ls -la /Users 2>/dev/null || echo 'SUCCESS: mac host isolated.'"
