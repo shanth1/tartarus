@@ -2,6 +2,7 @@
 
 .env
 
+.backups/
 .openclaw/
 .workspace/
 .configs/
