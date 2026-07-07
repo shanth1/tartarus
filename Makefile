@@ -13,7 +13,7 @@ WORKSPACE_DIR := $(PROJECT_ROOT)/.workspace
 BACKUP_DIR := $(PROJECT_ROOT)/.backups
 
 # port mapping (host:container) - block of 100 ports for agents
-PORT_MAP := -p 18000-18100:8000-8100
+PORT_MAP := -p 18000-18010:8000-8010 18790:18789
 
 help:
 	@awk 'BEGIN {FS = ":.*##"; printf "\n\033[1musage:\033[0m\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z0-9_-]+:.*?##/ { printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
